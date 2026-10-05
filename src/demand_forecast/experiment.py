@@ -12,8 +12,11 @@ VALIDATION = ("2021-05-01", "2022-04-30 23:00")
 FOLDS = {
     "2022-23": ("2022-05-01", "2023-04-30 23:00"),
     "2023-24": ("2023-05-01", "2024-04-30 23:00"),
+    "2024-25": ("2024-05-01", "2025-04-30 23:00"),
+    "2025-26 (to Mar)": ("2025-05-01", "2026-03-31 23:00"),  # data ends 31 Mar 2026
 }
-TEST_START, TEST_END = FOLDS["2023-24"]
+HEADLINE = "2024-25"  # latest complete test year; used for the headline table and figures
+TEST_START, TEST_END = FOLDS[HEADLINE]
 INTERVAL = (0.1, 0.9)  # 80 % prediction interval
 
 MODEL_COLUMNS = ["naive_24", "naive_168", "ets", "ridge", "lightgbm_basic", "lightgbm"]

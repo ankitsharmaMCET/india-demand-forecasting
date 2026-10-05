@@ -1,4 +1,4 @@
-"""Tune LightGBM on the validation year (2021-05 to 2022-04), before both test folds."""
+"""Tune LightGBM on the validation year (2021-05 to 2022-04), before all test folds."""
 from __future__ import annotations
 
 import json
@@ -8,13 +8,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from demand_forecast.data import download, load_hourly  # noqa: E402
+from demand_forecast.data import load_hourly  # noqa: E402
 from demand_forecast.experiment import VALIDATION  # noqa: E402
 from demand_forecast.tuning import tune_lightgbm  # noqa: E402
 
 
 def main() -> None:
-    y = load_hourly(download(ROOT / "data/raw/study1_hourly.csv"))
+    y = load_hourly(ROOT / "data/raw/iced_hourly.csv")
     table = tune_lightgbm(y, *VALIDATION)
     (ROOT / "results").mkdir(exist_ok=True)
     table.round(3).to_csv(ROOT / "results/tuning.csv", index=False)

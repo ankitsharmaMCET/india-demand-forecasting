@@ -1,4 +1,4 @@
-"""Run the backtest on both test folds and write metrics + predictions to results/."""
+"""Run the backtest on all test folds and write metrics + predictions to results/."""
 from __future__ import annotations
 
 import json
@@ -11,15 +11,15 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from demand_forecast.data import download, load_hourly  # noqa: E402
+from demand_forecast.data import load_hourly  # noqa: E402
 from demand_forecast.evaluate import interval_metrics, mape_by, score_table  # noqa: E402
-from demand_forecast.experiment import FOLDS, MODEL_COLUMNS, run_backtest  # noqa: E402
+from demand_forecast.experiment import FOLDS, HEADLINE, MODEL_COLUMNS, run_backtest  # noqa: E402
 
 
 def main() -> None:
     results = ROOT / "results"
     results.mkdir(exist_ok=True)
-    y = load_hourly(download(ROOT / "data/raw/study1_hourly.csv"))
+    y = load_hourly(ROOT / "data/raw/iced_hourly.csv")
     print(f"Loaded {len(y):,} hourly values, {y.index.min()} -> {y.index.max()}")
 
     params_file = results / "best_params.json"
@@ -39,7 +39,7 @@ def main() -> None:
         iv = interval_metrics(actual, preds["lightgbm_q10"], preds["lightgbm_q90"])
         all_intervals.append({"fold": label, "nominal_%": 80, **iv})
         all_preds.append(preds.assign(fold=label))
-        if label == list(FOLDS)[-1]:  # headline fold = the most recent year
+        if label == HEADLINE:  # headline fold = the latest complete test year
             preds.to_csv(results / "predictions.csv")
             table.drop(columns="fold").round(3).to_csv(results / "metrics.csv")
             models = preds[MODEL_COLUMNS]

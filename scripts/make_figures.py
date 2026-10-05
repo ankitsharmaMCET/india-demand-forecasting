@@ -61,10 +61,17 @@ def legend(ax, **kw):
 def main() -> None:
     out = ROOT / "results/figures"
     out.mkdir(parents=True, exist_ok=True)
-    y = load_hourly(ROOT / "data/raw/study1_hourly.csv")
+    y = load_hourly(ROOT / "data/raw/iced_hourly.csv")
     preds = pd.read_csv(ROOT / "results/predictions.csv", index_col=0, parse_dates=True)
     metrics = pd.read_csv(ROOT / "results/metrics.csv", index_col=0)
     by_hour = pd.read_csv(ROOT / "results/mape_by_hour.csv", index_col=0)
+
+    t0, t1 = pd.Timestamp(TEST_START), pd.Timestamp(TEST_END)
+    wk0 = pd.Timestamp(f"{t0.year}-08-15")
+    wk0 += pd.Timedelta(days=(7 - wk0.dayofweek) % 7)  # first Monday on or after 15 Aug
+    wk1 = wk0 + pd.Timedelta(days=6, hours=23)
+    week_label = f"{wk0.day} to {wk1.day} {wk1:%b %Y}"
+    year_label = f"{t0.day} {t0:%b %Y} to {t1.day} {t1:%b %Y}"
 
     # 1 - the series
     fig, ax = new_fig()
@@ -76,21 +83,21 @@ def main() -> None:
                 xytext=(pd.Timestamp("2020-07-15"), 105), color=INK2, fontsize=8.5,
                 arrowprops=dict(arrowstyle="-", color=INK2, lw=0.8))
     ax.set_ylabel("Mean daily demand (GW)", color=INK2, fontsize=9)
-    title(ax, "India's national electricity demand, 2019 to 2024",
+    title(ax, f"India's national electricity demand, {y.index.min().year} to {y.index.max().year}",
           "Daily mean of hourly demand. Shaded: the year held out for testing.")
     fig.tight_layout()
     fig.savefig(out / "01_demand_series.png", facecolor=SURFACE)
     plt.close(fig)
 
     # 2 - one week, forecast vs actual
-    week = preds.loc["2023-08-21":"2023-08-27 23:00"]
+    week = preds.loc[wk0:wk1]
     fig, ax = new_fig()
     for name in ("actual", "naive_168", "lightgbm"):
         ax.plot(week.index, week[name] / 1000, color=COLOR[name], linewidth=2 if name != "naive_168" else 1.6,
                 linestyle=STYLE.get(name, "-"), label=LABEL[name])
     ax.set_ylabel("Demand (GW)", color=INK2, fontsize=9)
     ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%a %d %b"))
-    title(ax, "Day-ahead forecast against actual demand, 21 to 27 Aug 2023",
+    title(ax, f"Day-ahead forecast against actual demand, {week_label}",
           "Each day is forecast at 00:00 using only data up to the previous midnight.")
     legend(ax, loc="lower right", ncol=1)
     fig.tight_layout()
@@ -98,6 +105,9 @@ def main() -> None:
     plt.close(fig)
 
     # 3 - error by hour of day
+    ets_better = [f"{h:02d}:00" for h in by_hour.index if by_hour.loc[h, "ets"] < by_hour.loc[h, "lightgbm"]]
+    sub3 = ("LightGBM has the lowest error at every hour." if not ets_better else
+            "Holt-Winters beats LightGBM only at " + ", ".join(ets_better) + ".")
     fig, ax = new_fig()
     order = ["naive_168", "naive_24", "ets", "ridge", "lightgbm_basic", "lightgbm"]
     for name in order:
@@ -107,7 +117,7 @@ def main() -> None:
     ax.set_ylabel("MAPE (%)", color=INK2, fontsize=9)
     ax.set_xticks(range(0, 24, 3))
     title(ax, "Forecast error by hour of day, test year",
-          "Holt-Winters beats LightGBM only at 00:00 and 01:00, the hours nearest the last observation.")
+          sub3)
     legend(ax, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3)
     fig.tight_layout()
     fig.savefig(out / "03_error_by_hour.png", facecolor=SURFACE)
@@ -123,7 +133,7 @@ def main() -> None:
     ax.grid(axis="x", color=GRID, linewidth=0.8)
     ax.set_xlabel("MAPE (%), all hours of the test year", color=INK2, fontsize=9)
     ax.set_xlim(0, m["MAPE_%"].max() * 1.15)
-    title(ax, "Day-ahead accuracy, 1 May 2023 to 30 Apr 2024", "Lower is better. Baselines in grey.")
+    title(ax, f"Day-ahead accuracy, {year_label}", "Lower is better. Baselines in grey.")
     fig.tight_layout()
     fig.savefig(out / "04_accuracy.png", facecolor=SURFACE)
     plt.close(fig)
@@ -135,7 +145,7 @@ def main() -> None:
     ax.plot(week.index, week["actual"] / 1000, color=COLOR["actual"], linewidth=1.8, label=LABEL["actual"])
     ax.set_ylabel("Demand (GW)", color=INK2, fontsize=9)
     ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%a %d %b"))
-    title(ax, "LightGBM forecast with an 80% prediction interval, 21 to 27 Aug 2023",
+    title(ax, f"LightGBM forecast with an 80% prediction interval, {week_label}",
           "Quantile LightGBM at the 10th and 90th percentiles.")
     legend(ax, loc="lower right")
     fig.tight_layout()
@@ -158,7 +168,7 @@ def main() -> None:
     ax.set_xlabel("Share of total split gain (%)", color=INK2, fontsize=9)
     ax.set_xlim(0, gain.max() * 1.15)
     title(ax, "What the LightGBM model relies on",
-          "Top 12 features by gain, model trained on data before May 2023. Importance is not causation.")
+          f"Top 12 features by gain, model trained on data before {t0:%B %Y}. Importance is not causation.")
     fig.tight_layout()
     fig.savefig(out / "06_feature_importance.png", facecolor=SURFACE)
     plt.close(fig)
