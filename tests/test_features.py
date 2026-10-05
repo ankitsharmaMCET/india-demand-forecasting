@@ -1,10 +1,10 @@
 import numpy as np
 import pandas as pd
 
-from demand_forecast.features import FEATURES, build_features, training_frame
+from demand_forecast.features import FEATURES, FEATURES_LAST, build_features, training_frame
 from demand_forecast.models import naive_forecast
 
-CHECKED = FEATURES + ["lag_24", "lag_48", "lag_72", "lag_168", "lag_336", "baseline"]
+CHECKED = FEATURES_LAST + ["lag_24", "lag_48", "lag_72", "lag_168", "lag_336", "baseline"]
 
 
 def test_lags_are_exact_shifts(synthetic):
@@ -43,7 +43,7 @@ def test_features_do_use_the_past(synthetic):
 def test_training_frame_has_no_nans(synthetic):
     tf = training_frame(build_features(synthetic))
     assert len(tf) > 0
-    assert not tf[FEATURES + ["y", "baseline"]].isna().any().any()
+    assert not tf[FEATURES_LAST + ["y", "baseline"]].isna().any().any()
     assert tf.index.min() >= synthetic.index.min() + pd.Timedelta(days=14)
 
 
@@ -53,3 +53,12 @@ def test_covid_window_is_dropped():
     tf = training_frame(build_features(y))
     assert not ((tf.index >= "2020-03-25") & (tf.index <= "2020-06-30 23:00")).any()
     assert len(training_frame(build_features(y), drop_covid=False)) > len(tf)
+
+
+def test_last_observed_features_use_only_the_previous_day(synthetic):
+    """r_last_obs for day D compares 23:00 of D-1 with 23:00 of D-8."""
+    day = pd.Timestamp("2021-03-10")
+    df = build_features(synthetic)
+    expected = (synthetic.loc[day - pd.Timedelta(hours=1)]
+                / synthetic.loc[day - pd.Timedelta(days=7, hours=1)])
+    assert np.allclose(df.loc[day: day + pd.Timedelta(hours=23), "r_last_obs"], expected)

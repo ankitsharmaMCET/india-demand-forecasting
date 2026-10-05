@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from demand_forecast.evaluate import daily_peak_mape, mae, mape, rmse, score_table
+from demand_forecast.evaluate import daily_peak_mape, interval_metrics, mae, mape, rmse, score_table
 
 
 def test_basic_metrics():
@@ -28,3 +28,13 @@ def test_score_table_sorted_by_mape():
     table = score_table(actual, preds)
     assert list(table.index) == ["good", "bad"]
     assert table.loc["good", "MAPE_%"] == pytest.approx(1.0)
+
+
+def test_interval_metrics():
+    idx = pd.date_range("2024-01-01", periods=4, freq="h")
+    actual = pd.Series([100.0, 100.0, 100.0, 100.0], index=idx)
+    lower = pd.Series([90.0, 90.0, 101.0, 90.0], index=idx)   # third value falls outside
+    upper = pd.Series([110.0, 110.0, 110.0, 110.0], index=idx)
+    m = interval_metrics(actual, lower, upper)
+    assert m["coverage_%"] == 75.0
+    assert m["mean_width_MW"] == pytest.approx((20 + 20 + 9 + 20) / 4)

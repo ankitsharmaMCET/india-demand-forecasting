@@ -26,7 +26,11 @@ CALENDAR_FEATURES = [
     "hour", "dayofweek", "month", "doy_sin", "doy_cos",
     "is_holiday", "is_holiday_lag_7d", "is_holiday_lag_1d",
 ]
-FEATURES = RATIO_FEATURES + CALENDAR_FEATURES
+FEATURES = RATIO_FEATURES + CALENDAR_FEATURES  # "basic" set
+# Momentum from the last hours observed before the forecast origin (same for all 24 hours
+# of the day; the tree combines it with ``hour`` to know how far ahead it is forecasting).
+LAST_OBS_FEATURES = ["r_last_obs", "r_last6"]
+FEATURES_LAST = FEATURES + LAST_OBS_FEATURES
 
 # National lockdown began 25 Mar 2020; demand did not behave normally until later.
 COVID_START, COVID_END = "2020-03-25", "2020-06-30"
@@ -74,6 +78,15 @@ def build_features(y: pd.Series) -> pd.DataFrame:
     df["r_prev_day_min"] = df["prev_day_min"] / df["prev_7d_mean"]
     df["r_lag_168_vs_week"] = base / df["prev_7d_mean"]
 
+    # Last observed hours (23:00 and the 18:00-23:00 mean of day D-1) relative to the
+    # same hours one week earlier. Known at the 00:00 origin of day D.
+    late = y[y.index.hour == 23]
+    late = late.groupby(late.index.normalize()).first()
+    evening = y[y.index.hour >= 18]
+    evening = evening.groupby(evening.index.normalize()).mean()
+    df["r_last_obs"] = (late / late.shift(7)).shift(1).reindex(day_key).to_numpy()
+    df["r_last6"] = (evening / evening.shift(7)).shift(1).reindex(day_key).to_numpy()
+
     idx = df.index
     df["hour"] = idx.hour
     df["dayofweek"] = idx.dayofweek
@@ -91,7 +104,7 @@ def build_features(y: pd.Series) -> pd.DataFrame:
 
 def training_frame(df: pd.DataFrame, drop_covid: bool = True) -> pd.DataFrame:
     """Drop rows with incomplete history and (optionally) the 2020 lockdown."""
-    out = df.dropna(subset=FEATURES + ["y", "baseline"])
+    out = df.dropna(subset=FEATURES_LAST + ["y", "baseline"])
     if drop_covid:
         day = out.index.normalize()
         out = out[(day < pd.Timestamp(COVID_START)) | (day > pd.Timestamp(COVID_END))]

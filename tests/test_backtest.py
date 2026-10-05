@@ -7,7 +7,9 @@ from demand_forecast.experiment import run_backtest
 def test_backtest_runs_and_beats_a_bad_baseline(synthetic):
     preds = run_backtest(synthetic, test_start="2021-04-10", test_end="2021-04-20 23:00",
                          include_ets=False, verbose=False)
-    assert {"actual", "naive_24", "naive_168", "ridge", "lightgbm"} <= set(preds.columns)
+    assert {"actual", "naive_24", "naive_168", "ridge", "lightgbm_basic", "lightgbm",
+            "lightgbm_q10", "lightgbm_q90"} <= set(preds.columns)
+    assert (preds["lightgbm_q10"] <= preds["lightgbm_q90"]).all()
     assert len(preds) == 11 * 24
     assert not preds.isna().any().any()
     # the synthetic series is highly regular, so the models must be accurate

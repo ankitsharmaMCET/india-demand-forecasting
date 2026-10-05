@@ -49,3 +49,13 @@ def mape_by(actual: pd.Series, preds: pd.DataFrame, key: pd.Index) -> pd.DataFra
         err = (preds[name] - actual).abs() / actual.abs() * 100
         out[name] = err.groupby(key).mean()
     return pd.DataFrame(out)
+
+
+def interval_metrics(actual: pd.Series, lower: pd.Series, upper: pd.Series) -> dict:
+    """Empirical coverage and average width of a prediction interval."""
+    inside = (actual >= lower) & (actual <= upper)
+    return {
+        "coverage_%": float(inside.mean() * 100),
+        "mean_width_MW": float((upper - lower).mean()),
+        "mean_width_%_of_demand": float(((upper - lower) / actual).mean() * 100),
+    }

@@ -12,7 +12,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
-from .features import BASE_LAG, FEATURES, RATIO_FEATURES
+from .features import BASE_LAG, FEATURES, FEATURES_LAST, RATIO_FEATURES
 
 
 # ---------------------------------------------------------------- baselines
@@ -29,15 +29,16 @@ class RatioModel:
 
     name = "ratio_model"
 
-    def __init__(self, estimator):
+    def __init__(self, estimator, features=None):
         self.estimator = estimator
+        self.features = list(features or FEATURES)
 
     def fit(self, frame: pd.DataFrame) -> "RatioModel":
-        self.estimator.fit(frame[FEATURES], frame["y"] / frame["baseline"])
+        self.estimator.fit(frame[self.features], frame["y"] / frame["baseline"])
         return self
 
     def predict(self, frame: pd.DataFrame) -> pd.Series:
-        ratio = self.estimator.predict(frame[FEATURES])
+        ratio = self.estimator.predict(frame[self.features])
         return pd.Series(ratio * frame["baseline"].to_numpy(), index=frame.index)
 
 
@@ -55,15 +56,21 @@ def make_ridge(alpha: float = 1.0) -> RatioModel:
     return m
 
 
-def make_lightgbm(seed: int = 0) -> RatioModel:
-    # Fixed, conservative hyper-parameters chosen a priori (no tuning on the test year).
-    reg = lgb.LGBMRegressor(
-        n_estimators=500, learning_rate=0.03, num_leaves=31, min_child_samples=50,
-        subsample=0.8, subsample_freq=1, colsample_bytree=0.8,
-        reg_lambda=1.0, random_state=seed, n_jobs=2, verbose=-1,
-    )
-    m = RatioModel(reg)
-    m.name = "lightgbm"
+DEFAULT_LGB_PARAMS = dict(
+    n_estimators=500, learning_rate=0.03, num_leaves=31, min_child_samples=50,
+    subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0,
+)
+
+
+def make_lightgbm(features=None, params: dict | None = None, seed: int = 0,
+                  alpha: float | None = None, name: str = "lightgbm") -> RatioModel:
+    """LightGBM on the ratio target. ``alpha`` switches to quantile regression."""
+    p = {**DEFAULT_LGB_PARAMS, **(params or {})}
+    if alpha is not None:
+        p.update(objective="quantile", alpha=alpha)
+    reg = lgb.LGBMRegressor(random_state=seed, n_jobs=2, verbose=-1, **p)
+    m = RatioModel(reg, features or FEATURES_LAST)
+    m.name = name
     return m
 
 

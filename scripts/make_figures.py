@@ -13,14 +13,18 @@ import pandas as pd  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from demand_forecast.data import load_hourly  # noqa: E402
+import json  # noqa: E402
+
 from demand_forecast.experiment import TEST_END, TEST_START  # noqa: E402
+from demand_forecast.features import FEATURES_LAST, build_features, training_frame  # noqa: E402
+from demand_forecast.models import make_lightgbm  # noqa: E402
 
 SURFACE, INK, INK2, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e6e5e1"
 # One colour per entity, used identically in every figure. Baselines are neutral.
-COLOR = {"lightgbm": "#2a78d6", "ridge": "#eb6834", "ets": "#1baf7a",
+COLOR = {"lightgbm": "#2a78d6", "lightgbm_basic": "#8db6e8", "ridge": "#eb6834", "ets": "#1baf7a",
          "naive_24": "#52514e", "naive_168": "#8f8e87", "actual": INK}
 STYLE = {"naive_24": (0, (5, 3)), "naive_168": (0, (1, 2))}
-LABEL = {"lightgbm": "LightGBM", "ridge": "Ridge", "ets": "Holt-Winters (ETS)",
+LABEL = {"lightgbm": "LightGBM", "lightgbm_basic": "LightGBM, no last-hours features", "ridge": "Ridge", "ets": "Holt-Winters (ETS)",
          "naive_24": "Naive: same hour yesterday", "naive_168": "Naive: same hour last week",
          "actual": "Actual"}
 
@@ -95,7 +99,7 @@ def main() -> None:
 
     # 3 - error by hour of day
     fig, ax = new_fig()
-    order = ["naive_168", "naive_24", "ets", "ridge", "lightgbm"]
+    order = ["naive_168", "naive_24", "ets", "ridge", "lightgbm_basic", "lightgbm"]
     for name in order:
         ax.plot(by_hour.index, by_hour[name], color=COLOR[name], linewidth=2 if name == "lightgbm" else 1.6,
                 linestyle=STYLE.get(name, "-"), label=LABEL[name])
@@ -103,7 +107,7 @@ def main() -> None:
     ax.set_ylabel("MAPE (%)", color=INK2, fontsize=9)
     ax.set_xticks(range(0, 24, 3))
     title(ax, "Forecast error by hour of day, test year",
-          "Holt-Winters beats the ML models only in the first hours after midnight, nearest the last observation.")
+          "Holt-Winters beats LightGBM only at 00:00 and 01:00, the hours nearest the last observation.")
     legend(ax, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3)
     fig.tight_layout()
     fig.savefig(out / "03_error_by_hour.png", facecolor=SURFACE)
@@ -122,6 +126,41 @@ def main() -> None:
     title(ax, "Day-ahead accuracy, 1 May 2023 to 30 Apr 2024", "Lower is better. Baselines in grey.")
     fig.tight_layout()
     fig.savefig(out / "04_accuracy.png", facecolor=SURFACE)
+    plt.close(fig)
+    # 5 - prediction interval for the sample week
+    fig, ax = new_fig()
+    ax.fill_between(week.index, week["lightgbm_q10"] / 1000, week["lightgbm_q90"] / 1000,
+                    color=COLOR["lightgbm"], alpha=0.18, linewidth=0, label="80% prediction interval")
+    ax.plot(week.index, week["lightgbm"] / 1000, color=COLOR["lightgbm"], linewidth=1.8, label=LABEL["lightgbm"])
+    ax.plot(week.index, week["actual"] / 1000, color=COLOR["actual"], linewidth=1.8, label=LABEL["actual"])
+    ax.set_ylabel("Demand (GW)", color=INK2, fontsize=9)
+    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%a %d %b"))
+    title(ax, "LightGBM forecast with an 80% prediction interval, 21 to 27 Aug 2023",
+          "Quantile LightGBM at the 10th and 90th percentiles.")
+    legend(ax, loc="lower right")
+    fig.tight_layout()
+    fig.savefig(out / "05_prediction_interval.png", facecolor=SURFACE)
+    plt.close(fig)
+
+    # 6 - what the model relies on (gain importance of a model trained before the test year)
+    params_file = ROOT / "results/best_params.json"
+    params = json.loads(params_file.read_text()) if params_file.exists() else None
+    df = build_features(y)
+    model = make_lightgbm(FEATURES_LAST, params).fit(training_frame(df.loc[df.index < TEST_START]))
+    gain = pd.Series(model.estimator.booster_.feature_importance("gain"), index=FEATURES_LAST)
+    gain = (gain / gain.sum() * 100).sort_values().tail(12)
+    fig, ax = new_fig(9, 4.4)
+    ax.barh(gain.index, gain.values, color=COLOR["lightgbm"], height=0.6)
+    for i, v in enumerate(gain.values):
+        ax.text(v + 0.5, i, f"{v:.1f}%", va="center", color=INK, fontsize=8.5)
+    ax.grid(axis="y", visible=False)
+    ax.grid(axis="x", color=GRID, linewidth=0.8)
+    ax.set_xlabel("Share of total split gain (%)", color=INK2, fontsize=9)
+    ax.set_xlim(0, gain.max() * 1.15)
+    title(ax, "What the LightGBM model relies on",
+          "Top 12 features by gain, model trained on data before May 2023. Importance is not causation.")
+    fig.tight_layout()
+    fig.savefig(out / "06_feature_importance.png", facecolor=SURFACE)
     plt.close(fig)
     print("figures written to", out)
 
