@@ -75,11 +75,11 @@ Hourly national demand met in MW, 1 Jan 2017 to 31 Mar 2026 (81,048 hours, no ga
 
 An earlier version of this project used a copy of the same series from the Grid-Sentinel repository (Jan 2019 to Apr 2024). On the 46,728 hours the two cover in common, the values are identical.
 
-The XLS files are **not committed** (size, and the dashboard's own terms apply). Download them yourself, see Reproduce below.
+The six XLS files, the merged `iced_hourly.csv` and an earlier copy of the same series (`study1_hourly.csv`, no longer used) are committed in `data/raw/`. The dashboard's own terms apply to the data. To re-download, see Reproduce below.
 
 ## Reproduce
 
-1. Download the data. Open the dashboard page above, pick two years in "Yearly Demand Profile", click **Apply Filters**, then the **XLS** icon. Repeat so that every year from 2017 to 2026 is covered (2017+2018, 2019+2020, 2021+2022, 2023+2024, 2025+2026). Put the files in `data/raw/` without renaming them (`Yearly Demand Profile.xlsx`, `Yearly Demand Profile (1).xlsx`, ...). Overlapping years are merged and must agree.
+1. Data (already in `data/raw/`; skip to step 2 unless you want to re-download). Open the dashboard page above, pick two years in "Yearly Demand Profile", click **Apply Filters**, then the **XLS** icon. Repeat so that every year from 2017 to 2026 is covered (2017+2018, 2019+2020, 2021+2022, 2023+2024, 2025+2026). Put the files in `data/raw/` without renaming them (`Yearly Demand Profile.xlsx`, `Yearly Demand Profile (1).xlsx`, ...). Overlapping years are merged and must agree.
 2. Run:
 
 ```bash
