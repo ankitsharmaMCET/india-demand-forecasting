@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "demand-forecast"
+version = "0.1.0"
+description = "Day-ahead hourly electricity demand forecasting for India: baselines vs ETS vs Ridge vs LightGBM"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy", "pandas", "scikit-learn", "statsmodels", "lightgbm", "holidays", "matplotlib",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
