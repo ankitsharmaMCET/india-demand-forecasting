@@ -2,7 +2,4 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
-data/raw/*.csv
 .venv/
-data/raw/*.xlsx
-data/raw/*.gz
